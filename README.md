@@ -8,3 +8,5 @@ With the free version of Backupery, message history of slack is exported, but no
 - `ReadyToImport`: including a zip file that contains raw history
     
 Unzip the file to a directory, and run `parse.py` from this repo. You should see pdf files generated based on the raw history.
+
+献给阿尔弗雷德
