@@ -27,7 +27,9 @@ level_styles = {
     'error': {'color': 'red'},
     'critical': {'bold': True, 'color': 'red'},
 }
-formatter = coloredlogs.ColoredFormatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s", level_styles=level_styles)
+formatter = coloredlogs.ColoredFormatter(
+    "%(asctime)s %(filename)s:%(lineno)d - %(levelname)s - %(message)s",
+    level_styles=level_styles)
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 
@@ -256,15 +258,19 @@ class Chat:
                 raise (e)
         return "\n\n".join(messages)
 
-    def export(self, out_dir: str):
+    def export(self, out_dir: str, force_rebuild: bool = False):
         logger.info(f"Exporting chat {self.name}")
         self.files = os.listdir(self.path)
         self.files.sort()
         file_path = os.path.join(out_dir, f"{self.name}.pdf")
 
         if os.path.exists(file_path):
-            logger.warning(f"Skip existing file {file_path}")
-            return
+            if force_rebuild:
+                logger.warning(f"Overriding {file_path}")
+                os.remove(file_path)
+            else:
+                logger.warning(f"Skip existing file {file_path}")
+                return
 
         pdfmetrics.registerFont(TTFont("Noto", "NotoSansSC-Regular.ttf"))
         doc = SimpleDocTemplate(file_path,pagesize=letter,
@@ -272,10 +278,15 @@ class Chat:
                                 topMargin=2*cm,bottomMargin=2*cm)
 
         paragraphs = []
+        titleStyle = getSampleStyleSheet()["Heading1"]
         dateStyle = getSampleStyleSheet()["Heading2"]
         textStyle = getSampleStyleSheet()["Normal"]
         dateStyle.fontName = "Noto"
         textStyle.fontName = "Noto"
+
+        # Add title
+        title = Paragraph(f"slack channel: {self.name}", titleStyle)
+        paragraphs += [title]
 
         for file in self.files:
             date = file[:-5]
@@ -287,6 +298,7 @@ class Chat:
 
         logger.debug(f"Saving to file {file_path}")
         doc.build(paragraphs)
+        exit()
 
 class SlackDB:
     def __init__(self, path) -> None:
@@ -353,15 +365,16 @@ class SlackDB:
         self._open_dms()
         self._open_chats()
 
-    def export(self, out_dir: str):
+    def export(self, out_dir: str, force_rebuild: bool = False):
         for chat in self.chats.values():
-            chat.export(out_dir)
+            chat.export(out_dir, force_rebuild)
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Process input and output paths.')
     parser.add_argument('input_path', type=str, help='Path to the input file or directory')
     parser.add_argument('output_path', type=str, nargs='?', default='./out', help='Path to the output directory (default: ./out)')
     parser.add_argument('--log_level', type=str, choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'], default='INFO', help='Set the logging level (default: INFO)')
+    parser.add_argument('-f', action='store_true', help='Force rebuild')
 
     return parser.parse_args()
 
@@ -371,13 +384,14 @@ def main():
     logger.setLevel(getattr(logging, args.log_level))
     input_path = args.input_path
     output_path = args.output_path
+    force_rebuild = args.f
 
     if not os.path.exists(output_path):
         os.makedirs(output_path)
 
     db = SlackDB(input_path)
     db.open()
-    db.export(output_path)
+    db.export(output_path, force_rebuild)
 
 if __name__ == '__main__':
     main()
