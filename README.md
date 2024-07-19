@@ -7,6 +7,10 @@ With the free version of Backupery, message history of slack is exported, but no
 - `HTML2`: partial message history
 - `ReadyToImport`: including a zip file that contains raw history
     
-Unzip the file to a directory, and run `parse.py` from this repo. You should see pdf files generated based on the raw history.
+Unzip the file to a directory, and run `parse.py` from this repo. E.g., `./backupery_slack_parser/parse.py ./[unzip path]` exported all history.
+
+`./backupery_slack_parser/parse.py ./[unzip path] --filter [filter-file]` exports only messages of selected chats on selected dates. See `filter.yaml` for example.
+
+You should see pdf files generated based on the raw history.
 
 献给阿尔弗雷德
