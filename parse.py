@@ -19,6 +19,9 @@ import os
 import sys
 from filter import Filter
 import shutil
+import base64
+import hashlib
+import random
 
 logger = logging.getLogger(__name__)
 handler = logging.StreamHandler(sys.stdout)
@@ -322,8 +325,11 @@ class Chat:
 
 
 class SlackDB:
-    def __init__(self, path) -> None:
+    def __init__(self, path, anonymous: bool = False) -> None:
         self.root = path
+        self.anonymous = anonymous
+        self.anonymous_salt = "".join([str(random.random()) for i in range(10)])
+        print(self.anonymous_salt)
 
         self.channels_json = self.path("channels.json")
         self.dms_json = self.path("dms.json")
@@ -374,7 +380,11 @@ class SlackDB:
     def user_name(self, id) -> str:
         if id == "USLACKBOT":
             return "slack bot"
-        return self.users[id].name
+        name = self.users[id].name
+        if self.anonymous:
+            hasher = hashlib.sha256((name + self.anonymous_salt).encode())
+            name = "user_" + base64.b32encode(hasher.digest()).decode()[:4]
+        return name
 
     def channel_name(self, id) -> str:
         return self.channels[id]
@@ -409,6 +419,7 @@ def parse_args():
     parser.add_argument('--filter', type=str, default='',
                         help='Path to filter file, which enables exporting only '
                         'selected chats and dates. Optional')
+    parser.add_argument('--anonymous', action='store_true', help='Redact names')
 
     return parser.parse_args()
 
@@ -420,13 +431,14 @@ def main():
     output_path = args.output_path
     force_rebuild = args.f
     filter_file = args.filter
+    anonymous = args.anonymous
 
     filter = Filter(filter_file)
 
     if not os.path.exists(output_path):
         os.makedirs(output_path)
 
-    db = SlackDB(input_path)
+    db = SlackDB(input_path, anonymous)
     db.open()
     db.export(output_path, force_rebuild, filter)
 
