@@ -17,3 +17,9 @@ class Filter:
         chats = self._config["chats"]
         chats = {c: [str(d) for d in dates] for c, dates in chats.items()}
         return chats
+
+    def get_copy_files(self) -> bool:
+        try:
+            return bool(self._config["copy-files"])
+        except Exception:
+            return False

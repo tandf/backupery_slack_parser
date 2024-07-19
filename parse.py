@@ -18,6 +18,7 @@ import logging
 import os
 import sys
 from filter import Filter
+import shutil
 
 logger = logging.getLogger(__name__)
 handler = logging.StreamHandler(sys.stdout)
@@ -259,7 +260,19 @@ class Chat:
                 raise (e)
         return "\n\n".join(messages)
 
-    def export(self, out_dir: str, force_rebuild: bool = False, dates_filter: list = None):
+    def copy_file(self, file: str, out_dir: str):
+        src = os.path.join(self.path, file)
+        dst_path = os.path.join(out_dir, self.name)
+        dst = os.path.join(dst_path, file)
+
+        if not os.path.exists(dst_path):
+            os.makedirs(dst_path)
+
+        print(f"copying {src} to {dst}")
+        shutil.copy(src, dst)
+
+    def export(self, out_dir: str, force_rebuild: bool = False,
+               dates_filter: list = None, copy_files: bool = False):
         logger.info(f"Exporting chat {self.name}")
         self.files = os.listdir(self.path)
         self.files.sort()
@@ -291,8 +304,13 @@ class Chat:
 
         for file in self.files:
             date = file[:-5]
-            if dates_filter and date not in dates_filter:
-                continue
+
+            if dates_filter:
+                if date not in dates_filter:
+                    continue
+                else:
+                    self.copy_file(file, out_dir)
+
             msgs = self.parse_file(file)
             date_paragraph = Paragraph(date.replace("\n", "<br />"), dateStyle)
             msgs_paragraph = Paragraph(msgs.replace("\n", "<br />"), textStyle)
@@ -301,6 +319,7 @@ class Chat:
 
         logger.debug(f"Saving to file {file_path}")
         doc.build(paragraphs)
+
 
 class SlackDB:
     def __init__(self, path) -> None:
@@ -374,16 +393,22 @@ class SlackDB:
 
         else:
             chats = filter.get_chats()
+            copy_files = filter.get_copy_files()
             for c, dates in chats.items():
-                self.chats[c].export(out_dir, force_rebuild, dates)
+                self.chats[c].export(out_dir, force_rebuild, dates, copy_files)
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Process input and output paths.')
     parser.add_argument('input_path', type=str, help='Path to the input file or directory')
-    parser.add_argument('output_path', type=str, nargs='?', default='./out', help='Path to the output directory (default: ./out)')
-    parser.add_argument('--log_level', type=str, choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'], default='INFO', help='Set the logging level (default: INFO)')
+    parser.add_argument('output_path', type=str, nargs='?', default='./out',
+                        help='Path to the output directory (default: ./out)')
+    parser.add_argument('--log_level', type=str,
+                        choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
+                        default='INFO', help='Set the logging level (default: INFO)')
     parser.add_argument('-f', action='store_true', help='Force rebuild')
-    parser.add_argument('--filter', type=str, default='', help='Path to filter file, optional')
+    parser.add_argument('--filter', type=str, default='',
+                        help='Path to filter file, which enables exporting only '
+                        'selected chats and dates. Optional')
 
     return parser.parse_args()
 
