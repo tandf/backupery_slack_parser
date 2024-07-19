@@ -17,6 +17,7 @@ import json
 import logging
 import os
 import sys
+from filter import Filter
 
 logger = logging.getLogger(__name__)
 handler = logging.StreamHandler(sys.stdout)
@@ -258,7 +259,7 @@ class Chat:
                 raise (e)
         return "\n\n".join(messages)
 
-    def export(self, out_dir: str, force_rebuild: bool = False):
+    def export(self, out_dir: str, force_rebuild: bool = False, dates_filter: list = None):
         logger.info(f"Exporting chat {self.name}")
         self.files = os.listdir(self.path)
         self.files.sort()
@@ -290,6 +291,8 @@ class Chat:
 
         for file in self.files:
             date = file[:-5]
+            if dates_filter and date not in dates_filter:
+                continue
             msgs = self.parse_file(file)
             date_paragraph = Paragraph(date.replace("\n", "<br />"), dateStyle)
             msgs_paragraph = Paragraph(msgs.replace("\n", "<br />"), textStyle)
@@ -298,7 +301,6 @@ class Chat:
 
         logger.debug(f"Saving to file {file_path}")
         doc.build(paragraphs)
-        exit()
 
 class SlackDB:
     def __init__(self, path) -> None:
@@ -365,9 +367,15 @@ class SlackDB:
         self._open_dms()
         self._open_chats()
 
-    def export(self, out_dir: str, force_rebuild: bool = False):
-        for chat in self.chats.values():
-            chat.export(out_dir, force_rebuild)
+    def export(self, out_dir: str, force_rebuild: bool = False, filter = None):
+        if not filter:
+            for chat in self.chats.values():
+                chat.export(out_dir, force_rebuild)
+
+        else:
+            chats = filter.get_chats()
+            for c, dates in chats.items():
+                self.chats[c].export(out_dir, force_rebuild, dates)
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Process input and output paths.')
@@ -375,6 +383,7 @@ def parse_args():
     parser.add_argument('output_path', type=str, nargs='?', default='./out', help='Path to the output directory (default: ./out)')
     parser.add_argument('--log_level', type=str, choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'], default='INFO', help='Set the logging level (default: INFO)')
     parser.add_argument('-f', action='store_true', help='Force rebuild')
+    parser.add_argument('--filter', type=str, default='', help='Path to filter file, optional')
 
     return parser.parse_args()
 
@@ -385,13 +394,16 @@ def main():
     input_path = args.input_path
     output_path = args.output_path
     force_rebuild = args.f
+    filter_file = args.filter
+
+    filter = Filter(filter_file)
 
     if not os.path.exists(output_path):
         os.makedirs(output_path)
 
     db = SlackDB(input_path)
     db.open()
-    db.export(output_path, force_rebuild)
+    db.export(output_path, force_rebuild, filter)
 
 if __name__ == '__main__':
     main()
